@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -27,7 +28,7 @@ def fetch_day(client: AskenClient, date_str: str, data_dir: Path) -> dict:
             client.download_photo(url) for url in meal.photo_urls
         ]
 
-    record = _build_record(date_str, meals, dt.datetime.now(JST))
+    record = _build_record(date_str, meals, photo_data, dt.datetime.now(JST))
 
     day_dir = data_dir / date_str
     photos_dir = day_dir / "photos"
@@ -46,7 +47,8 @@ def fetch_day(client: AskenClient, date_str: str, data_dir: Path) -> dict:
 
 
 def _build_record(
-    date_str: str, meals: dict[str, MealRecord], now: dt.datetime
+    date_str: str, meals: dict[str, MealRecord],
+    photo_data: dict[str, list[bytes]], now: dt.datetime,
 ) -> dict:
     meal_records = {}
     for meal_type in MEAL_TYPES:
@@ -56,8 +58,8 @@ def _build_record(
             "items": meal.items,
             "total_energy_kcal": meal.total_energy_kcal,
             "photos": [
-                f"{meal_type}_{n}.jpg"
-                for n in range(1, len(meal.photo_urls) + 1)
+                f"{meal_type}_{hashlib.sha256(blob).hexdigest()}_{n}.jpg"
+                for n, blob in enumerate(photo_data[meal_type], 1)
             ],
         }
     return {
