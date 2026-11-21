@@ -60,14 +60,16 @@ def test_fetch_day_saves_record_and_photos(tmp_path):
     assert saved["date"] == "2026-10-23"
     assert saved["total_energy_kcal"] == 196
     assert list(saved["meals"]) == MEAL_TYPES
+    names = saved["meals"]["lunch"]["photos"]
+    assert len(names) == 2
     assert saved["meals"]["lunch"] == {
         "label": "昼食",
         "items": [item("ご飯", "156"), item("味噌汁", "40")],
         "total_energy_kcal": 196,
-        "photos": ["lunch_1.jpg", "lunch_2.jpg"],
+        "photos": names,
     }
-    assert (day_dir / "photos" / "lunch_1.jpg").read_bytes() == b"AAA"
-    assert (day_dir / "photos" / "lunch_2.jpg").read_bytes() == b"BBB"
+    assert (day_dir / "photos" / names[0]).read_bytes() == b"AAA"
+    assert (day_dir / "photos" / names[1]).read_bytes() == b"BBB"
     assert "summary" not in saved
     assert saved["updated_at"].endswith("+09:00")
 
@@ -138,12 +140,54 @@ def test_fetch_day_removes_stale_photos_of_the_same_meal(tmp_path):
         photo_urls=["/p/a/fit_380x380"],
     )
 
-    fetch.fetch_day(
+    record = fetch.fetch_day(
         FakeClient({"lunch": meal}, photos={"/p/a/fit_380x380": b"NEW"}),
         "2026-10-23",
         tmp_path,
     )
 
     photos = sorted(p.name for p in (day_dir / "photos").iterdir())
-    assert photos == ["lunch_1.jpg"]
-    assert (day_dir / "photos" / "lunch_1.jpg").read_bytes() == b"NEW"
+    assert photos == record["meals"]["lunch"]["photos"]
+    assert len(photos) == 1
+    assert (day_dir / "photos" / photos[0]).read_bytes() == b"NEW"
+
+
+@pytest.mark.parametrize("failure", ["photo", "record"])
+def test_fetch_day_keeps_committed_generation_when_save_fails(
+    tmp_path, monkeypatch, failure
+):
+    client = FakeClient(
+        {"lunch": lunch_meal()},
+        photos={"/p/a/fit_380x380": b"OLD1", "/p/b/fit_380x380": b"OLD2"},
+    )
+    old = fetch.fetch_day(client, "2026-10-23", tmp_path)
+    day_dir = tmp_path / "2026-10-23"
+    old_record = (day_dir / "record.json").read_bytes()
+    client.photos = {"/p/a/fit_380x380": b"NEW1", "/p/b/fit_380x380": b"NEW2"}
+
+    if failure == "photo":
+        write_photo = fetch._write_bytes_atomic
+        calls = 0
+
+        def fail_second_photo(path, data):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("photo save failed")
+            write_photo(path, data)
+
+        monkeypatch.setattr(fetch, "_write_bytes_atomic", fail_second_photo)
+    else:
+        def fail_record(path, data):
+            raise OSError("record save failed")
+
+        monkeypatch.setattr(fetch, "write_json_atomic", fail_record)
+
+    with pytest.raises(OSError, match="save failed"):
+        fetch.fetch_day(client, "2026-10-23", tmp_path)
+
+    assert (day_dir / "record.json").read_bytes() == old_record
+    names = old["meals"]["lunch"]["photos"]
+    assert [(day_dir / "photos" / name).read_bytes() for name in names] == [
+        b"OLD1", b"OLD2"
+    ]
