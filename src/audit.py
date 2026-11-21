@@ -155,6 +155,11 @@ def validate_result(result: dict) -> None:
         for key in ("kcal_delta_min", "kcal_delta_max"):
             if not _is_int(d[key]):
                 raise ValueError(f"{where}.{key} must be an integer")
+        if d["kcal_delta_min"] > d["kcal_delta_max"]:
+            raise ValueError(
+                f"{where}.kcal_delta_min must not exceed kcal_delta_max, "
+                f"got {d['kcal_delta_min']} > {d['kcal_delta_max']}"
+            )
         if not _is_confidence(d["confidence"]):
             raise ValueError(
                 f"{where}.confidence must be a number between 0 and 1"

@@ -399,6 +399,28 @@ def test_validate_result_accepts_valid_result():
     audit.validate_result(result(diff(kmin=-10, kmax=10)))
 
 
+@pytest.mark.parametrize(
+    ("kmin", "kmax"), [(-300, -20), (-50, 50), (100, 300), (80, 80)]
+)
+def test_validate_result_accepts_ordered_delta_range(kmin, kmax):
+    audit.validate_result(result(diff(kmin=kmin, kmax=kmax)))
+
+
+def test_inverted_delta_range_is_recorded_as_error_without_verification(day):
+    azure = FakeAzure(
+        {"luna": [result(diff(kmin=300, kmax=20)), result()]}
+    )
+
+    lunch = audit.audit_day(DATE, day, azure, **KW)["meals"]["lunch"]
+
+    assert lunch["status"] == "error"
+    assert lunch["error"] == (
+        "diffs[0].kcal_delta_min must not exceed kcal_delta_max, "
+        "got 300 > 20"
+    )
+    assert azure.deployments() == ["luna", "luna"]
+
+
 def test_validate_result_accepts_null_count():
     r = result()
     r["visible_items"][0]["count"] = None
@@ -431,6 +453,20 @@ def test_validate_result_accepts_null_count():
         (
             lambda r: r["diffs"][0].update(kcal_delta_max=True),
             "diffs[0].kcal_delta_max must be an integer",
+        ),
+        (
+            lambda r: r["diffs"][0].update(
+                kcal_delta_min=300, kcal_delta_max=20
+            ),
+            "diffs[0].kcal_delta_min must not exceed kcal_delta_max, "
+            "got 300 > 20",
+        ),
+        (
+            lambda r: r["diffs"][0].update(
+                kcal_delta_min=-20, kcal_delta_max=-300
+            ),
+            "diffs[0].kcal_delta_min must not exceed kcal_delta_max, "
+            "got -20 > -300",
         ),
         (
             lambda r: r["diffs"][0].update(confidence=-0.1),
