@@ -88,7 +88,7 @@ class Config:
             verify_deployment=os.environ["AZURE_OPENAI_VERIFY_DEPLOYMENT"],
             verify_threshold_kcal=_int_env("VERIFY_THRESHOLD_KCAL", 0),
             track_days=_int_env("ASKEN_TRACK_DAYS", 1),
-            interval_seconds=int(os.environ["INTERVAL_SECONDS"]),
+            interval_seconds=_int_env("INTERVAL_SECONDS", 1),
             data_dir=Path(os.environ["DATA_DIR"]),
             run_once=os.environ.get("RUN_ONCE", "").lower()
             in ("1", "true", "yes"),

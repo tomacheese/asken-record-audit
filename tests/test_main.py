@@ -114,6 +114,21 @@ def test_config_parses_run_once(env, value, expected):
             "ASKEN_TRACK_DAYS must be an integer >= 1, got 'x'",
         ),
         (
+            "INTERVAL_SECONDS",
+            "0",
+            "INTERVAL_SECONDS must be an integer >= 1, got '0'",
+        ),
+        (
+            "INTERVAL_SECONDS",
+            "-1",
+            "INTERVAL_SECONDS must be an integer >= 1, got '-1'",
+        ),
+        (
+            "INTERVAL_SECONDS",
+            "x",
+            "INTERVAL_SECONDS must be an integer >= 1, got 'x'",
+        ),
+        (
             "VERIFY_THRESHOLD_KCAL",
             "-1",
             "VERIFY_THRESHOLD_KCAL must be an integer >= 0, got '-1'",
